@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="change_folder">Trocar pasta do jogo</string>
+    <string name="button_layout">Layout dos botões</string>
 </resources>
