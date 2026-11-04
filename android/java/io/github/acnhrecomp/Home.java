@@ -6,6 +6,9 @@
 package io.github.acnhrecomp;
 
 import android.app.Activity;
+import android.content.ClipData;
+import android.content.ClipboardManager;
+import android.content.Context;
 import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.Typeface;
@@ -25,6 +28,7 @@ import android.widget.TextView;
 
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.ArrayList;
@@ -54,6 +58,10 @@ public class Home extends Activity {
     protected void onCreate(Bundle state) {
         super.onCreate(state);
         String error = getIntent().getStringExtra("error");
+        if (getIntent().getBooleanExtra("layout", false) && error == null) {
+            showLayout();
+            return;
+        }
         boolean ask = getIntent().getBooleanExtra("pick", false) || error != null;
         String saved = ask ? "" : readSaved();
         if (!saved.isEmpty() && hasPackage(new File(saved)) && canRead(saved)) {
@@ -98,7 +106,8 @@ public class Home extends Activity {
         return b;
     }
 
-    private void show(String note) {
+    // An empty page: the sky, the paper card (box) on it. The caller fills box and calls setContentView(scroll).
+    private ScrollView page() {
         ScrollView scroll = new ScrollView(this);
         scroll.setFillViewport(true);
         GradientDrawable sky = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
@@ -117,6 +126,11 @@ public class Home extends Activity {
         outer.addView(box, new LinearLayout.LayoutParams(Math.min(dp(560), getResources().getDisplayMetrics().widthPixels - dp(48)),
                 LinearLayout.LayoutParams.WRAP_CONTENT));
         scroll.addView(outer);
+        return scroll;
+    }
+
+    private void show(String note) {
+        ScrollView scroll = page();
 
         TextView title = new TextView(this);
         title.setText("ACNH Recomp");
@@ -145,6 +159,7 @@ public class Home extends Activity {
                             + (f.startsWith("/storage/emulated") ? t("phone", "celular") : t("memory card", "cartão de memória"))
                             + ")", Color.rgb(90, 170, 90), v -> check(f, false)));
         box.addView(button(t("Choose the game folder", "Escolher a pasta do jogo"), Color.rgb(70, 140, 210), v -> pick()));
+        box.addView(button(t("Button layout", "Layout dos botões"), Color.WHITE, v -> showLayout()));
         setContentView(scroll);
     }
 
@@ -288,5 +303,103 @@ public class Home extends Activity {
                 finish();
             });
         }).start();
+    }
+
+    // ---- button layout ----------------------------------------------------------------------------------------
+    // The text the button customizer's "Copy settings" gives (input.touch_layout = ..., input.touch_stick = ...) goes
+    // into <game folder>/touch_layout.txt, which touch_layout.cpp reads when the game starts. The clipboard is read
+    // when the button is tapped (Android only lets the app in front read it).
+
+    private static final int MAX_LAYOUT_BYTES = 16 * 1024;
+
+    private File layoutFile() {
+        String folder = readSaved();
+        return folder.isEmpty() ? null : new File(folder, "touch_layout.txt");
+    }
+
+    private void showLayout() {
+        ScrollView scroll = page();
+        TextView title = new TextView(this);
+        title.setText(t("Button layout", "Layout dos botões"));
+        title.setTextSize(26);
+        title.setTypeface(Typeface.DEFAULT_BOLD);
+        title.setTextColor(Color.rgb(92, 70, 50));
+        box.addView(title);
+        TextView text = new TextView(this);
+        text.setText(t("In the button customizer tap \"Copy settings\", then come back here and tap Import. "
+                        + "It applies the next time the game starts.",
+                "No customizador de botões toque em \"Copy settings\", volte aqui e toque em Importar. "
+                        + "Vale na próxima vez que o jogo iniciar."));
+        text.setTextSize(15);
+        text.setTextColor(Color.rgb(120, 100, 80));
+        text.setPadding(0, dp(8), 0, dp(8));
+        box.addView(text);
+        message = new TextView(this);
+        message.setTextSize(15);
+        message.setVisibility(View.GONE);
+        box.addView(message);
+        File file = layoutFile();
+        if (file == null)
+            say(t("Choose the game folder first.", "Escolha a pasta do jogo primeiro."), true);
+        else if (file.isFile())
+            say(t("A custom layout is in use.", "Um layout personalizado está em uso."), false);
+        box.addView(button(t("Import from clipboard", "Importar da área de transferência"), Color.rgb(70, 140, 210),
+                v -> importLayout()));
+        box.addView(button(t("Back to the default layout", "Voltar ao layout padrão"), Color.WHITE, v -> {
+            File f = layoutFile();
+            if (f != null && f.exists() && !f.delete())
+                say(t("Could not remove the layout.", "Não foi possível remover o layout."), true);
+            else
+                say(t("Default layout. It applies the next time the game starts.",
+                        "Layout padrão. Vale na próxima vez que o jogo iniciar."), false);
+        }));
+        final String saved = readSaved();
+        if (!saved.isEmpty() && hasPackage(new File(saved)) && canRead(saved))
+            box.addView(button(t("Play", "Jogar"), Color.rgb(90, 170, 90), v -> check(saved, false)));
+        else
+            box.addView(button(t("Back", "Voltar"), Color.WHITE, v -> show(null)));
+        setContentView(scroll);
+    }
+
+    private void importLayout() {
+        File file = layoutFile();
+        if (file == null || !canRead(file.getParent())) {
+            say(t("Choose the game folder first (and allow access to all files).",
+                    "Escolha a pasta do jogo primeiro (e permita o acesso a todos os arquivos)."), true);
+            return;
+        }
+        String clip = "";
+        ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+        ClipData data = cm == null ? null : cm.getPrimaryClip();
+        if (data != null && data.getItemCount() > 0 && data.getItemAt(0).coerceToText(this) != null)
+            clip = data.getItemAt(0).coerceToText(this).toString();
+        // Only the customizer's own lines are kept (the file is read by the game, and says nothing else).
+        StringBuilder out = new StringBuilder();
+        int lines = 0;
+        for (String line : clip.split("\n")) {
+            String l = line.trim();
+            if (l.startsWith("input.touch_") && l.indexOf('=') > 0) {
+                out.append(l).append('\n');
+                lines++;
+            }
+        }
+        byte[] bytes = out.toString().getBytes(StandardCharsets.UTF_8);
+        if (lines == 0 || !out.toString().contains("input.touch_layout")) {
+            say(t("The clipboard has no layout. Tap \"Copy settings\" in the customizer first.",
+                    "A área de transferência não tem um layout. Toque em \"Copy settings\" no customizador antes."), true);
+            return;
+        }
+        if (bytes.length > MAX_LAYOUT_BYTES) {
+            say(t("That text is too long to be a layout.", "Esse texto é longo demais para ser um layout."), true);
+            return;
+        }
+        try (FileOutputStream o = new FileOutputStream(file)) {
+            o.write(bytes);
+        } catch (IOException e) {
+            say(t("Could not save the layout: ", "Não foi possível salvar o layout: ") + e.getMessage(), true);
+            return;
+        }
+        say(t("Layout saved (" + lines + " settings). Start the game to use it; if it is running, close the app first.",
+                "Layout salvo (" + lines + " ajustes). Inicie o jogo para usá-lo; se ele estiver aberto, feche o app antes."), false);
     }
 }
