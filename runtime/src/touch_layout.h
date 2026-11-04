@@ -20,6 +20,8 @@ void touch_stick_rest(float aspect, bool mirrored, float& x, float& y, float& r)
 bool touch_enabled();
 bool touch_mirrored();
 float touch_opacity_scale();
+// How far the stick's thumb reaches, as a fraction of the screen's height (0.12, or the customizer's stick radius).
+float touch_stick_radius();
 // The button under (x, y) (0..1 across the screen; aspect = width / height), or 0.
 uint64_t touch_hit(float x, float y, float aspect);
 
