@@ -92,6 +92,23 @@ adb push private/acnh/users.txt "$D/"
 
 Saves are written to `user/device_save` on the phone; copy it back the same way with `adb pull`.
 
+### Button layout (from the button customizer)
+
+The on-screen buttons can be rearranged in the button customizer (a web app: move and resize each button, hide some,
+left-handed mirror) and imported here:
+
+1. In the customizer tap **Copy settings**.
+2. In ACNH Recomp open **Button layout** (home screen, or long press the app icon > *Button layout*) and tap
+   **Import from clipboard**. It writes `touch_layout.txt` into the game folder (the app needs all-files access, as for
+   the game itself). *Back to the default layout* deletes it.
+3. Start the game (close the app first if it was running: the file is read once, at start).
+
+`touch_layout.txt` can also be written by hand: `input.touch_layout = A:x,y,r;...` (positions across the screen, radius
+as a fraction of its height, drawn for 16:9: other screen shapes keep each button's distance from its edge),
+`input.touch_stick = x,y,r`, `input.touch_hidden = X,UP`, `input.touch_mirror = 1`, `input.touch_size = 50..150`,
+`input.touch_opacity = 10..100`, `input.touch_controls = true|false`. A button not named keeps its place. The skin
+(`input.touch_skin`) is ignored. A hidden gear (SETTINGS) can still be replaced by Minus + Plus on a controller.
+
 ## Playing
 
 Open **ACNH Recomp** on the phone. The first start takes a minute or two: shaders are prepared once, then kept.
