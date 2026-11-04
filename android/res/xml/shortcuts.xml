@@ -8,4 +8,11 @@
             <extra android:name="pick" android:value="true"/>
         </intent>
     </shortcut>
+    <shortcut android:shortcutId="layout" android:enabled="true" android:icon="@mipmap/ic_launcher"
+              android:shortcutShortLabel="@string/button_layout">
+        <intent android:action="android.intent.action.VIEW" android:targetPackage="io.github.acnhrecomp"
+                android:targetClass="io.github.acnhrecomp.Home">
+            <extra android:name="layout" android:value="true"/>
+        </intent>
+    </shortcut>
 </shortcuts>
